@@ -1,6 +1,12 @@
 package com.tecforte.blog.web.rest;
 
+import com.tecforte.blog.domain.Blog;
+import com.tecforte.blog.domain.Entry;
+import com.tecforte.blog.domain.enumeration.Negative;
+import com.tecforte.blog.domain.enumeration.Positive;
 import com.tecforte.blog.service.BlogService;
+import com.tecforte.blog.service.EntryService;
+import com.tecforte.blog.service.dto.EntryDTO;
 import com.tecforte.blog.web.rest.errors.BadRequestAlertException;
 import com.tecforte.blog.service.dto.BlogDTO;
 
@@ -16,8 +22,9 @@ import javax.validation.Valid;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * REST controller for managing {@link com.tecforte.blog.domain.Blog}.
@@ -34,9 +41,11 @@ public class BlogResource {
     private String applicationName;
 
     private final BlogService blogService;
+    private final EntryService entryService;
 
-    public BlogResource(BlogService blogService) {
+    public BlogResource(BlogService blogService, EntryService entryService) {
         this.blogService = blogService;
+        this.entryService = entryService;
     }
 
     /**
@@ -115,5 +124,45 @@ public class BlogResource {
         log.debug("REST request to delete Blog : {}", id);
         blogService.delete(id);
         return ResponseEntity.noContent().headers(HeaderUtil.createEntityDeletionAlert(applicationName, false, ENTITY_NAME, id.toString())).build();
+    }
+
+    @DeleteMapping("/blogs/{id}/clean")
+    public ResponseEntity<Void> deleteEntriesByBlogId(@PathVariable Long id) {
+        log.debug("REST request to clean Blog : {}", id);
+        Optional<Blog> blog = blogService.findByIdWithRelationships(id);
+        List<Long> entriesIdToBeDeleted = blog.map(b -> {
+            Set<Entry> entrySet = b.getEntries();
+            return entrySet.stream().map(e -> getEntryIdToDelete(b, e)).filter(Objects::nonNull).collect(Collectors.toList());
+        }).orElse(Collections.emptyList());
+        if(!entriesIdToBeDeleted.isEmpty()) {
+            entryService.deleteByIds(entriesIdToBeDeleted);
+        }
+
+        return ResponseEntity.noContent().headers(HeaderUtil.createEntityDeletionAlert(applicationName, false, ENTITY_NAME, id.toString())).build();
+    }
+
+
+    public Long getEntryIdToDelete(Blog blog, Entry entry) {
+        final List<String> uppCasedTitle = strToUppCasedArray(entry.getContent());
+        final List<String> uppCasedContent = strToUppCasedArray(entry.getContent());
+        final List<String> uppCasedWords = Stream.concat(uppCasedTitle.stream(), uppCasedContent.stream())
+            .collect(Collectors.toList());
+        if(blog.isPositive()) {
+            for(Positive p : Positive.values()) {
+                if (uppCasedWords.contains(p.name()))
+                    return entry.getId();
+            };
+        } else {
+            for(Negative v : Negative.values()) {
+                if (uppCasedWords.contains(v.name()))
+                    return entry.getId();
+            };
+        }
+
+        return null;
+    }
+
+    public List<String> strToUppCasedArray(final String value) {
+        return Arrays.asList(value.toUpperCase().replaceAll("[^a-zA-Z0-9\\s+]", "").split(" "));
     }
 }

@@ -4,6 +4,7 @@ import com.tecforte.blog.BlogApp;
 import com.tecforte.blog.domain.Entry;
 import com.tecforte.blog.repository.EntryRepository;
 import com.tecforte.blog.service.EntryService;
+import com.tecforte.blog.service.BlogService;
 import com.tecforte.blog.service.dto.EntryDTO;
 import com.tecforte.blog.service.mapper.EntryMapper;
 import com.tecforte.blog.web.rest.errors.ExceptionTranslator;
@@ -57,6 +58,9 @@ public class EntryResourceIT {
     private EntryService entryService;
 
     @Autowired
+    private BlogService blogService;
+
+    @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
 
     @Autowired
@@ -78,7 +82,7 @@ public class EntryResourceIT {
     @BeforeEach
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        final EntryResource entryResource = new EntryResource(entryService);
+        final EntryResource entryResource = new EntryResource(entryService, blogService);
         this.restEntryMockMvc = MockMvcBuilders.standaloneSetup(entryResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)

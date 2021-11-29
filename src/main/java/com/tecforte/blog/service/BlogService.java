@@ -59,6 +59,16 @@ public class BlogService {
             .collect(Collectors.toCollection(LinkedList::new));
     }
 
+    /**
+     * Get all the blogs.
+     *
+     * @return the list of entities.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Blog>findByIdWithRelationships(Long id) {
+        log.debug("Request to get all Blogs");
+        return blogRepository.findByIdWithEagerRelationships(id);
+    }
 
     /**
      * Get one blog by id.

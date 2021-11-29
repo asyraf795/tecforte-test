@@ -1,6 +1,10 @@
 package com.tecforte.blog.web.rest;
 
+import com.tecforte.blog.domain.enumeration.Negative;
+import com.tecforte.blog.domain.enumeration.Positive;
+import com.tecforte.blog.service.BlogService;
 import com.tecforte.blog.service.EntryService;
+import com.tecforte.blog.service.dto.BlogDTO;
 import com.tecforte.blog.web.rest.errors.BadRequestAlertException;
 import com.tecforte.blog.service.dto.EntryDTO;
 
@@ -22,8 +26,11 @@ import javax.validation.Valid;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * REST controller for managing {@link com.tecforte.blog.domain.Entry}.
@@ -40,9 +47,11 @@ public class EntryResource {
     private String applicationName;
 
     private final EntryService entryService;
+    private final BlogService blogService;
 
-    public EntryResource(EntryService entryService) {
+    public EntryResource(EntryService entryService, BlogService blogService) {
         this.entryService = entryService;
+        this.blogService = blogService;
     }
 
     /**
@@ -58,10 +67,41 @@ public class EntryResource {
         if (entryDTO.getId() != null) {
             throw new BadRequestAlertException("A new entry cannot already have an ID", ENTITY_NAME, "idexists");
         }
+        Optional<BlogDTO> blogDTO = blogService.findOne(entryDTO.getBlogId());
+        final boolean isValidEntry = chkContentValidity(blogDTO, entryDTO);
+        if(!isValidEntry) {
+            throw new BadRequestAlertException("Invalid Content", ENTITY_NAME, "invalidContent");
+        }
         EntryDTO result = entryService.save(entryDTO);
+
         return ResponseEntity.created(new URI("/api/entries/" + result.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
             .body(result);
+    }
+
+    public List<String> strToUppCasedArray(final String value) {
+        return Arrays.asList(value.toUpperCase().replaceAll("[^a-zA-Z0-9\\s+]", "").split(" "));
+    }
+
+    public boolean chkContentValidity(Optional<BlogDTO> blogDTO, EntryDTO entryDTO) {
+        return blogDTO.map(b -> {
+            final List<String> uppCasedTitle = strToUppCasedArray(entryDTO.getContent());
+            final List<String> uppCasedContent = strToUppCasedArray(entryDTO.getContent());
+            final List<String> uppCasedWords = Stream.concat(uppCasedTitle.stream(), uppCasedContent.stream())
+                .collect(Collectors.toList());
+            if(b.isPositive()) {
+                for(Positive p : Positive.values()) {
+                    if (uppCasedWords.contains(p.name()))
+                        return false;
+                };
+            } else {
+                for(Negative v : Negative.values()) {
+                    if (uppCasedWords.contains(v.name()))
+                        return false;
+                };
+            }
+            return true;
+        }).orElseThrow(() -> new BadRequestAlertException("A new entry cannot could not find blog", ENTITY_NAME, "blogidnotexists"));
     }
 
     /**
@@ -78,6 +118,12 @@ public class EntryResource {
         log.debug("REST request to update Entry : {}", entryDTO);
         if (entryDTO.getId() == null) {
             throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
+        }
+        Optional<BlogDTO> blogDTO = blogService.findOne(entryDTO.getBlogId());
+
+        final boolean isValidEntry = chkContentValidity(blogDTO, entryDTO);
+        if(!isValidEntry) {
+            throw new BadRequestAlertException("Invalid Content", ENTITY_NAME, "invalidContent");
         }
         EntryDTO result = entryService.save(entryDTO);
         return ResponseEntity.ok()

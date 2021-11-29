@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -80,5 +81,9 @@ public class EntryService {
     public void delete(Long id) {
         log.debug("Request to delete Entry : {}", id);
         entryRepository.deleteById(id);
+    }
+
+    public void deleteByIds(List<Long> entriesIdToBeDeleted) {
+        entryRepository.deleteByIdIn(entriesIdToBeDeleted);
     }
 }
